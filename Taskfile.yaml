@@ -7,15 +7,34 @@ tasks:
     sources:
       - ./src/client/**/*.odin
       - ./src/reader/**/*.odin
+      - ./src/domain/**/*.odin
     generates:
       - bin/client
-    silent: false
+    silent: true
 
   run:
     cmds:
       - bin/client
     deps:
       - build
-    silent: false
+    silent: true
+
+  test:
+    cmds:
+      - task: test-client
+      - task: test-domain
+        
+    
+  test-client:
+    cmds:
+      - odin test src/client -out:bin/client
+    sources:
+      - ./src/client/**/*.odin
+  
+  test-domain:
+    cmds:
+      - odin test src/domain -out:bin/domain
+    sources:
+      - ./src/domain/**/*.odin
 
 interval: 250ms
