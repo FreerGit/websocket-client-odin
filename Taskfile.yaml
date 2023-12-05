@@ -1,0 +1,21 @@
+version: '3'
+
+tasks:
+  build:
+    cmds:
+      - odin build src/client -out:bin/client -o:none -debug
+    sources:
+      - ./src/client/**/*.odin
+      - ./src/reader/**/*.odin
+    generates:
+      - bin/client
+    silent: false
+
+  run:
+    cmds:
+      - bin/client
+    deps:
+      - build
+    silent: false
+
+interval: 250ms
