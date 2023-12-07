@@ -1,14 +1,18 @@
 package client
 
+import openssl "../../deps/odin-http/openssl"
 import "../domain"
+
 
 import "core:bufio"
 import "core:bytes"
 import "core:crypto"
 import "core:encoding/base64"
 import "core:fmt"
+import "core:io"
 import "core:log"
 import "core:math/rand"
+import "core:mem"
 import "core:net"
 import "core:os"
 import "core:time"
@@ -47,6 +51,9 @@ connect :: proc(target: string, allocator := context.allocator) -> (res: Respons
 	return request(target, &r, allocator)
 }
 
+str := "{\"op\": \"subscribe\",\"args\": [\"orderbook.1.BTCUSDT\"]}"
+
+
 main :: proc() {
 	argv := os.args
 
@@ -54,13 +61,67 @@ main :: proc() {
 
 	target := "wss://stream.bybit.com/v5/public/spot"
 	res, err := connect(target)
-	log.debug(res, err)
+	// bufio.scanner_scan(&res._body)
 
-	key_bytes: [16]byte
-	fmt.println(key_bytes)
-	bytes_filled := rand.read(key_bytes[:])
-	assert(bytes_filled == len(key_bytes))
-	key := base64.encode(key_bytes[:])
-	fmt.println(key)
-	// fmt.println(host)
+	// log.debug(bufio.scanner_text(&res._body))
+
+	recv_buffer := make([]byte, 1 * mem.Megabyte) // res._socket
+	fragment_serialization_buffer: [128 * mem.Kilobyte]byte
+	mask_key: [4]byte
+	crypto.rand_bytes(mask_key[:])
+
+	b: bytes.Buffer
+	bytes.buffer_init_string(&b, str)
+
+	sub_fragment := Websocket_Fragment {
+		data = Text_Data{payload = bytes.buffer_to_bytes(&b)},
+		final = true,
+		mask = true,
+		mask_key = mask_key,
+	}
+	// log.debug(len(transmute([]u8)str))
+
+	#partial switch comm in res._socket {
+	// case net.TCP_Socket:
+	// stream = tcp_stream(comm)
+	case SSL_Communication:
+		serialized_data, serialize_error := serialize_websocket_fragment(
+			fragment_serialization_buffer[:],
+			sub_fragment,
+		)
+		log.debug(serialized_data, serialize_error)
+		openssl.SSL_write(comm.ssl, raw_data(serialized_data), i32(len(serialized_data)))
+		log.debug("wrote??")
+		for {
+			openssl.SSL_read(comm.ssl, raw_data(recv_buffer[:]), i32(len(recv_buffer)))
+			frame, remaining_data, frame_parse_error := parse_websocket_fragment(recv_buffer[:])
+			if frame_parse_error != nil {
+				fmt.printf("Error when parsing frame: %v\n", frame_parse_error)
+
+				os.exit(1)
+			}
+
+			#partial switch v in frame.data {
+			case Text_Data:
+				log.debug(string(v.payload))
+			}
+
+
+		}
+
+	// bytes_received, recv_error := net.recv_tcp(comm., recv_buffer[:])
+
+	}
+
+
+	defer response_destroy(&res)
+	body, allocation, berr := response_body(&res)
+	if berr != nil {
+		fmt.printf("Error retrieving response body: %s", berr)
+		return
+	}
+	defer body_destroy(body, allocation)
+	log.debug("hej")
+	fmt.println(body)
+	// bufio.
 }

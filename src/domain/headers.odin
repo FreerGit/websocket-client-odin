@@ -196,3 +196,52 @@ set_websocket_connection_headers :: proc(headers: ^Headers, host: string) -> ^He
 	headers_set(headers, "Sec-WebSocket-Key", key)
 	return headers
 }
+
+
+// Returns if this is a valid trailer header.
+//
+// RFC 7230 4.1.2:
+// A sender MUST NOT generate a trailer that contains a field necessary
+// for message framing (e.g., Transfer-Encoding and Content-Length),
+// routing (e.g., Host), request modifiers (e.g., controls and
+// conditionals in Section 5 of [RFC7231]), authentication (e.g., see
+// [RFC7235] and [RFC6265]), response control data (e.g., see Section
+// 7.1 of [RFC7231]), or determining how to process the payload (e.g.,
+// Content-Encoding, Content-Type, Content-Range, and Trailer).
+header_allowed_trailer :: proc(key: string) -> bool {
+	// odinfmt:disable
+    return (
+        // Message framing:
+        key != "transfer-encoding" &&
+        key != "content-length" &&
+        // Routing:
+        key != "host" &&
+        // Request modifiers:
+        key != "if-match" &&
+        key != "if-none-match" &&
+        key != "if-modified-since" &&
+        key != "if-unmodified-since" &&
+        key != "if-range" &&
+        // Authentication:
+        key != "www-authenticate" &&
+        key != "authorization" &&
+        key != "proxy-authenticate" &&
+        key != "proxy-authorization" &&
+        key != "cookie" &&
+        key != "set-cookie" &&
+        // Control data:
+        key != "age" &&
+        key != "cache-control" &&
+        key != "expires" &&
+        key != "date" &&
+        key != "location" &&
+        key != "retry-after" &&
+        key != "vary" &&
+        key != "warning" &&
+        // How to process:
+        key != "content-encoding" &&
+        key != "content-type" &&
+        key != "content-range" &&
+        key != "trailer")
+	// odinfmt:enable
+}

@@ -58,3 +58,6 @@ bin
 
 # dev deps
 websocat
+
+# target/
+target/*

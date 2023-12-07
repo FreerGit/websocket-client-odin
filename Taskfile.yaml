@@ -16,7 +16,7 @@ tasks:
       - target/client
     deps:
       - build
-    silent: true
+    # silent: true
 
   # test:
   #   cmds:
