@@ -3,38 +3,29 @@ version: '3'
 tasks:
   build:
     cmds:
-      - odin build src/client -out:bin/client -o:none -debug
+      - odin build src/ -out:target/client -o:none -debug
     sources:
-      - ./src/client/**/*.odin
-      - ./src/reader/**/*.odin
-      - ./src/domain/**/*.odin
+      - ./src/**/*.odin
     generates:
-      - bin/client
+      - target/client
     silent: true
 
   run:
     cmds:
-      - bin/client
+      - target/client
     deps:
       - build
     silent: true
 
-  test:
-    cmds:
-      - task: test-client
-      - task: test-domain
+  # test:
+  #   cmds:
+  #     - task: test-client
         
-    
-  test-client:
-    cmds:
-      - odin test src/client -out:bin/client
-    sources:
-      - ./src/client/**/*.odin
+  # test-client:
+  #   cmds:
+  #     - odin test src/client -out:bin/client
+  #   sources:
+  #     - ./src/client/**/*.odin
   
-  test-domain:
-    cmds:
-      - odin test src/domain -out:bin/domain
-    sources:
-      - ./src/domain/**/*.odin
 
 interval: 250ms
