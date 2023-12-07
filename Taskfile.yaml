@@ -3,9 +3,10 @@ version: '3'
 tasks:
   build:
     cmds:
-      - odin build src/ -out:target/client -o:none -debug
+      - odin build src/client -out:target/client -o:none -debug
     sources:
-      - ./src/**/*.odin
+      - ./src/client/**/*.odin
+      - ./deps/**/*.odin
     generates:
       - target/client
     silent: true

@@ -1,5 +1,4 @@
-//+private
-package client
+package _client
 
 import "core:bufio"
 import "core:bytes"
