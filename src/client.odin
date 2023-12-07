@@ -1,7 +1,5 @@
 package client
 
-import "../domain"
-import "../reader"
 
 import "core:crypto"
 import "core:encoding/base64"
@@ -25,6 +23,6 @@ main :: proc() {
 	assert(bytes_filled == len(key_bytes))
 	key := base64.encode(key_bytes[:])
 	fmt.println(key)
-	host := domain.host_from_url(adress)
-	fmt.println(host)
+	// host := domain.host_from_url(adress)
+	// fmt.println(host)
 }
