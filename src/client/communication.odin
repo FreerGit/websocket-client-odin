@@ -506,7 +506,6 @@ _response_till_close :: proc(_body: ^bufio.Scanner, max_length: int) -> (string,
 
 	if !bufio.scanner_scan(_body) {
 		if bufio.scanner_error(_body) == .Too_Long {
-			log.debug("HERE")
 			return "", .Too_Long
 		}
 

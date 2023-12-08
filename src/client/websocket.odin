@@ -69,12 +69,10 @@ parse_websocket_fragment :: proc(
 	second_byte := data[1]
 	mask := (second_byte & 0x80) != 0
 	payload_length: u64 = u64(second_byte) & 0x7f
-	log.debugf("initial length: %d\n", payload_length)
 	i += 1
 	if payload_length == 126 {
 		payload_length_bytes := [2]byte{data[i], data[i + 1]}
 		payload_length = u64(transmute(u16be)payload_length_bytes)
-		log.debugf("16 bit payload length: %d\n", payload_length)
 		i += 2
 	} else if payload_length == 127 {
 		payload_length_bytes := [8]byte {
@@ -88,10 +86,8 @@ parse_websocket_fragment :: proc(
 			data[i + 7],
 		}
 		payload_length = u64(transmute(u64be)payload_length_bytes)
-		log.debugf("64 bit payload length: %d\n", payload_length)
 		i += 8
 	}
-	log.debugf("payload_length: %d\n", payload_length)
 
 	if mask {
 		mask_key := data[i:i + 4]
@@ -103,7 +99,6 @@ parse_websocket_fragment :: proc(
 
 	payload := data[i:i + int(payload_length)]
 	remaining_data = data[i + int(payload_length):]
-	log.debugf("opcode: %02x", opcode)
 
 	switch opcode {
 	case 0x00:
@@ -244,13 +239,8 @@ serialize_websocket_fragment :: proc(
 	if fragment.mask {
 		key := fragment.mask_key
 		for j := u64(0); j < payload_length; j += 1 {
-			log.debug("LOOP:", payload_data[j], payload_data[j] ~ key[j % 4])
-
 			payload_data[j] = payload_data[j] ~ key[j % 4]
-			log.debug("LOOP:", payload_data[j], payload_data[j] ~ key[j % 4])
-
 		}
-		log.debug(key)
 	}
 
 	copy(buffer[i:], payload_data)

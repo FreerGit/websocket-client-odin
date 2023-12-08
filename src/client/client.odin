@@ -51,7 +51,7 @@ connect :: proc(target: string, allocator := context.allocator) -> (res: Respons
 	return request(target, &r, allocator)
 }
 
-str := "{\"op\": \"subscribe\",\"args\": [\"orderbook.1.BTCUSDT\"]}"
+str := "{\"op\": \"subscribe\",\"args\": [\"orderbook.50.BTCUSDT\"]}"
 
 
 main :: proc() {
@@ -61,12 +61,10 @@ main :: proc() {
 
 	target := "wss://stream.bybit.com/v5/public/spot"
 	res, err := connect(target)
-	// bufio.scanner_scan(&res._body)
 
-	// log.debug(bufio.scanner_text(&res._body))
 
-	recv_buffer := make([]byte, 1 * mem.Megabyte) // res._socket
-	fragment_serialization_buffer: [128 * mem.Kilobyte]byte
+	recv_buffer := make([]byte, 256 * mem.Megabyte) // res._socket
+	fragment_serialization_buffer: [256 * mem.Kilobyte]byte
 	mask_key: [4]byte
 	crypto.rand_bytes(mask_key[:])
 
@@ -89,21 +87,22 @@ main :: proc() {
 			fragment_serialization_buffer[:],
 			sub_fragment,
 		)
-		log.debug(serialized_data, serialize_error)
 		openssl.SSL_write(comm.ssl, raw_data(serialized_data), i32(len(serialized_data)))
-		log.debug("wrote??")
 		for {
 			openssl.SSL_read(comm.ssl, raw_data(recv_buffer[:]), i32(len(recv_buffer)))
+			t := time.now()
 			frame, remaining_data, frame_parse_error := parse_websocket_fragment(recv_buffer[:])
 			if frame_parse_error != nil {
 				fmt.printf("Error when parsing frame: %v\n", frame_parse_error)
 
 				os.exit(1)
 			}
+			t1 := time.now()
+			fmt.println(time.duration_nanoseconds(time.diff(t, t1)))
 
 			#partial switch v in frame.data {
 			case Text_Data:
-				log.debug(string(v.payload))
+			// log.debug(string(v.payload))
 			}
 
 
