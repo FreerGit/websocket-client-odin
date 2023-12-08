@@ -11,13 +11,29 @@ tasks:
       - target/client
     silent: true
 
+  build-release:
+    cmds:
+      - odin build src/client -out:target/client -o:speed
+    sources:
+      - ./src/client/**/*.odin
+      - ./deps/**/*.odin
+    generates:
+      - target/client
+    silent: true
+
   run:
     cmds:
       - target/client
     deps:
       - build
-    # silent: true
+    silent: true
 
+  run-release:
+    cmds:
+      - target/client
+    deps:
+      - build-release
+    silent: true
   # test:
   #   cmds:
   #     - task: test-client

@@ -3,7 +3,7 @@
     "collections": [
         {
             "name": "core",
-            "path": "/root/bin/Odin/core"
+            "path": "/usr/local/bin/Odin/core/"
         }
     ],
     "enable_document_symbols": true,
