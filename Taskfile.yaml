@@ -5,7 +5,7 @@ tasks:
     cmds:
       - odin build src/client -out:target/client -o:none -debug
     sources:
-      - ./src/client/**/*.odin
+      - ./src/**/*.odin
       - ./deps/**/*.odin
     generates:
       - target/client
@@ -13,9 +13,9 @@ tasks:
 
   build-release:
     cmds:
-      - odin build src/client -out:target/client -o:speed
+      - odin build src/client -out:target/client -o:speed -lld
     sources:
-      - ./src/client/**/*.odin
+      - ./src/**/*.odin
       - ./deps/**/*.odin
     generates:
       - target/client
