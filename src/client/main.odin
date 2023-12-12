@@ -40,20 +40,24 @@ Error :: union {
 	net.Dial_Error,
 	net.Parse_Endpoint_Error,
 	net.Network_Error,
-	bufio.Scanner_Error,
+	// bufio.Scanner_Error,
 	Request_Error,
 	SSL_Error,
+	ParseError,
 }
 
-connect :: proc(target: string, allocator := context.allocator) -> (res: Response, err: Error) {
-	r: Request
-	request_init(&r)
-	defer request_destroy(&r)
-	return request(target, &r, allocator)
-}
 
 str := "{\"op\": \"subscribe\",\"args\": [\"orderbook.50.BTCUSDT\"]}"
 
+handle_message :: proc(frame: Frame, err: Error) {
+	if err != nil {
+		log.error(err)
+		os.exit(1)
+	} else {
+		log.debug(frame)
+
+	}
+}
 
 main :: proc() {
 	argv := os.args
@@ -61,10 +65,10 @@ main :: proc() {
 	context.logger = log.create_console_logger()
 
 	target := "wss://stream.bybit.com/v5/public/spot"
+	// TODO: should take a client? return a client? change this api
 	res, err := connect(target)
 
 
-	recv_buffer := make([]byte, 4 * mem.Megabyte) // res._socket
 	fragment_serialization_buffer: [256 * mem.Kilobyte]byte
 	mask_key: [4]byte
 	crypto.rand_bytes(mask_key[:])
@@ -89,109 +93,29 @@ main :: proc() {
 			sub_fragment,
 		)
 
+		// TODO: write function
 		fmt.println(openssl.SSL_write(comm.ssl, raw_data(serialized_data), i32(len(serialized_data))))
-		client := Client {
+
+		// TODO: init function
+		// TODO: cleanup function?
+		client := ClientTLS {
 			socket = comm,
 		}
-		unparsed_bytes: []byte
 
-		for {
+		run(&client, handle_message)
 
-			bytes_read := openssl.SSL_read(comm.ssl, raw_data(recv_buffer[:]), i32(len(recv_buffer)))
-			t1 := time.now()
-
-			// log.debug("--------------READ--------------")
-			a := [][]byte{unparsed_bytes, recv_buffer[:bytes_read + 1]}
-			buf, e := slice.concatenate(a)
-			client.r_buffer = Buffer {
-				data = buf[:],
-				i    = 0,
-			}
-			parsing := true
-			for parsing {
-				// log.debug("--------------PARSE--------------")
-				remaining, err := parse_frame(&client)
-				// if err != nil && remaining == nil {
-				// 	log.debug(err)
-				// 	os.exit(1)
-				// }
-				// if remaining == nil && err == nil {
-				// 	log.debug(remaining)
-				// 	log.debugf(
-				// 		"op: %s, len: %d, payload: %s\n",
-				// 		client.frame.opcode,
-				// 		client.frame.payload_len,
-				// 		client.frame.payload,
-				// 	)
-				// } else {
-				#partial switch v in err {
-				case EndOfPayload:
-					parsing = false
-					unparsed_bytes = remaining
-				case nil:
-					log.debug(remaining)
-					log.debugf(
-						"op: %s, len: %d, payload: %s\n",
-						client.frame.opcode,
-						client.frame.payload_len,
-						client.frame.payload,
-					)
-				case:
-					log.error(err)
-					log.error(err)
-					log.error(err)
-					os.exit(1)
-				}
-				// break
-
-				t2 := time.now()
-				fmt.println(time.duration_nanoseconds(time.diff(t1, t2)))
-
-			}
-			// , remaining_data, frame_parse_error
-			// frame := 
-			// for {
-			// 	frame, remaining, get_new := parse_frame(recv_buffer[:])
-			// 	recv_buffer = remaining
-			// 	if !frame.final {
-			// 		log.debug(frame)
-			// 		log.debug(len(string(remaining)), get_new)
-			// 		log.debug(string(remaining))
-
-			// 	}
-			// 	if len(string(remaining)) == 0 || get_new {
-			// 		left_over := len(string(remaining))
-			// 		break
-			// 	}
-			// 	log.debugf("Final: %d, type: %s, msg: %sEND\n", frame.final, frame.msg_type, frame.payload)
-			// }
-			// assert(frame.final)
-			// if frame_parse_error != nil {
-			// 	fmt.printf("Error when parsing, frame: %v\n", frame_parse_error)
-			// 	os.exit(1)
-			// }
-
-			// #partial switch v in frame.data {
-			// case Text_Data:
-			// // log.debug(string(v.payload))
-			// }
-
-
-		}
-
-	// bytes_received, recv_error := net.recv_tcp(comm., recv_buffer[:])
 
 	}
 
 
-	defer response_destroy(&res)
-	body, allocation, berr := response_body(&res)
-	if berr != nil {
-		fmt.printf("Error retrieving response body: %s", berr)
-		return
-	}
-	defer body_destroy(body, allocation)
-	log.debug("hej")
-	fmt.println(body)
-	// bufio.
+	// defer response_destroy(&res)
+	// body, allocation, berr := response_body(&res)
+	// if berr != nil {
+	// 	fmt.printf("Error retrieving response body: %s", berr)
+	// 	return
+	// }
+	// defer body_destroy(body, allocation)
+	// log.debug("hej")
+	// fmt.println(body)
+	// // bufio.
 }

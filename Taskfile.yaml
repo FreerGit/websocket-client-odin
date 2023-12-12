@@ -34,15 +34,16 @@ tasks:
     deps:
       - build-release
     silent: true
-  # test:
-  #   cmds:
-  #     - task: test-client
+
+  test:
+    cmds:
+      - task: test-client
         
-  # test-client:
-  #   cmds:
-  #     - odin test src/client -out:bin/client
-  #   sources:
-  #     - ./src/client/**/*.odin
+  test-client:
+    cmds:
+      - odin test src/client -out:target/client -debug
+    sources:
+      - ./src/client/**/*.odin
   
 
 interval: 250ms
