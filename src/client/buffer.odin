@@ -9,8 +9,8 @@ Buffer :: struct {
 }
 
 buffer_pull :: proc(rb: ^Buffer, take: uint) -> (buf: []byte, err: ParseError) {
-	if (len(rb.data) - rb.i < int(take)) {
-		return nil, FrameNotComplete{rest = buffer_pull_frame(rb, take) or_return}
+	if rb.i + int(take) > len(rb.data) {
+		return rb.data[rb.i:], IndexOutOfRange{}
 	}
 	buf = rb.data[rb.i:rb.i + int(take)]
 	rb.i += int(take)
@@ -18,28 +18,8 @@ buffer_pull :: proc(rb: ^Buffer, take: uint) -> (buf: []byte, err: ParseError) {
 }
 
 
-buffer_pull_frame :: proc(rb: ^Buffer, len: uint) -> (buf: []byte, err: ParseError) {
-	// if (len(rb.data) - rb.i < int(take)) {
-	// 	log.error((len(rb.data)), rb.i, take)
-	// 	log.error(string(rb.data[rb.i - 4:]))
-	// 	rb.i -= 2
-	// 	rest := rb.data[rb.i:]
-	// 	// rb.i += 2
-	// 	// rb.i += len(rest)
-	// 	// log.error(string(rest))
-	// 	// log.error(string(rb.data[rb.i:]))
-	// 	return rest, EndOfPayload{}
-	// }
-	// buf = rb.data[rb.i:rb.i + int(take)]
-	// rb.i += int(take)
-	// return
-	switch len {
-	case 127:
-		rb.i -= 8
-	case:
-		rb.i -= 2
-	}
-	return rb.data[rb.i:], nil
+buffer_unread_u16 :: #force_inline proc(rb: ^Buffer) {
+	rb.i -= 2
 }
 
 buffer_pull_u8 :: proc(rb: ^Buffer) -> (buf: byte, err: ParseError) {
@@ -56,7 +36,6 @@ buffer_pull_u16 :: proc(rb: ^Buffer) -> (buf: [2]byte, err: ParseError) {
 	rb.i += 2
 	return b, nil
 }
-
 
 buffer_pull_u32 :: proc(rb: ^Buffer) -> (buf: [4]byte, err: ParseError) {
 	data := rb.data

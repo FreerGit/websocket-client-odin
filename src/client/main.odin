@@ -36,11 +36,11 @@ SSL_Error :: enum {
 	SSL_Write_Failed,
 }
 
-Error :: union {
+Error :: union #shared_nil {
 	net.Dial_Error,
 	net.Parse_Endpoint_Error,
 	net.Network_Error,
-	// bufio.Scanner_Error,
+	bufio.Scanner_Error,
 	Request_Error,
 	SSL_Error,
 	ParseError,
@@ -51,15 +51,15 @@ str := "{\"op\": \"subscribe\",\"args\": [\"orderbook.50.BTCUSDT\"]}"
 
 handle_message :: proc(frame: Frame, err: Error) {
 	if err != nil {
-		log.error(err)
+		log.error(frame, err)
 		os.exit(1)
 	} else {
-		log.debug(frame)
-
+		log.debug(string(frame.payload))
 	}
 }
 
 main :: proc() {
+
 	argv := os.args
 
 	context.logger = log.create_console_logger()
