@@ -7,12 +7,13 @@ import "core:bufio"
 import "core:log"
 import "core:mem"
 import "core:os"
+import "core:time"
 
 
 ClientTLS :: struct {
-	socket:          SSL_Communication,
-	read_buffer:     Buffer,
-	fragment_buffer: Buffer,
+	socket:      SSL_Communication,
+	read_buffer: Buffer,
+	// fragment_buffer: Buffer,
 }
 
 Frame :: struct {
@@ -34,36 +35,57 @@ connect :: proc(target: string, allocator := context.allocator) -> (res: Respons
 OnMessage :: proc(msg: Frame, err: Error)
 
 run :: proc(client: ^ClientTLS, handle_message: OnMessage) -> (msg: Frame, err: Error) {
-	recv_buffer := make([]byte, 256 * mem.Kilobyte) // res._socket
+	// offset := 0
+	recv_buffer := make([]byte, 32 * mem.Kilobyte) // res._socket
+	buffer := Buffer{}
 	for {
-		bytes_read := openssl.SSL_read(client.socket.ssl, raw_data(recv_buffer[:]), i32(len(recv_buffer)))
+		bytes_read := openssl.SSL_read(
+			client.socket.ssl,
+			raw_data(recv_buffer[buffer.i:]),
+			i32(len(recv_buffer[buffer.i:])),
+		)
+		t1 := time.now()
 		client.read_buffer = Buffer {
-			data = recv_buffer[:bytes_read],
+			data = recv_buffer[:i32(buffer.i) + bytes_read],
 			i    = 0,
 		}
 		cont := true
 		n := 0
 		for cont {
-			frame, e := parse_frame(&client.read_buffer, &client.fragment_buffer)
+			frame, e := parse_frame(&client.read_buffer)
 			#partial switch v in e {
 			case FrameNotComplete:
-				log.error("HIT NOTCOMPLETE")
-				client.fragment_buffer = Buffer{0, v.rest}
-				log.error(string(client.fragment_buffer.data))
+				// log.error("HIT NOTCOMPLETE")
+				// log.error(string(client.fragment_buffer.data))
+				buffer = Buffer{v.i, 0, v.rest}
+				// for x, i in buffer.data {
+				// 	recv_buffer[i] = x
+				// }
+				copy(recv_buffer[:len(buffer.data)], buffer.data[:])
+				buffer.data = {}
+				// log.error(string(client.fragment_buffer.data))
 				cont = false
 			// os.exit(1)
 			case EOF:
 				cont = false
+				buffer = {}
 			case nil:
 				n += 1
+				log.error("??")
 				if n > 40 {
 					os.exit(1)
 				}
-				log.debug(n)
 				handle_message(frame, v)
+			case:
+				log.error("|")
+				os.exit(1)
 			}
 			// handle_message(frame, err)
 		}
+
+		t2 := time.now()
+
+		log.debug(time.duration_nanoseconds(time.diff(t1, t2)))
 	}
 
 }

@@ -4,12 +4,14 @@ import "core:log"
 import "core:slice"
 
 Buffer :: struct {
-	i:    int,
-	data: []byte,
+	i:       int,
+	handled: int,
+	data:    []byte,
 }
 
 buffer_pull :: proc(rb: ^Buffer, take: uint) -> (buf: []byte, err: ParseError) {
 	if rb.i + int(take) > len(rb.data) {
+		rb.i = rb.i - rb.handled
 		return rb.data[rb.i:], IndexOutOfRange{}
 	}
 	buf = rb.data[rb.i:rb.i + int(take)]
@@ -26,6 +28,7 @@ buffer_pull_u8 :: proc(rb: ^Buffer) -> (buf: byte, err: ParseError) {
 	// return  or_return, nil
 	d := rb.data[rb.i]
 	rb.i += 1
+	rb.handled += 1
 	return d, nil
 }
 
@@ -34,6 +37,7 @@ buffer_pull_u16 :: proc(rb: ^Buffer) -> (buf: [2]byte, err: ParseError) {
 	i := rb.i
 	b := [2]byte{data[i], data[i + 1]}
 	rb.i += 2
+	rb.handled += 2
 	return b, nil
 }
 
@@ -42,6 +46,7 @@ buffer_pull_u32 :: proc(rb: ^Buffer) -> (buf: [4]byte, err: ParseError) {
 	i := rb.i
 	b := [4]byte{data[i], data[i + 1], data[i + 2], data[i + 3]}
 	rb.i += 4
+	rb.handled += 4
 	return b, nil
 }
 
@@ -59,6 +64,7 @@ buffer_pull_u64 :: proc(rb: ^Buffer) -> (buf: [8]byte, err: ParseError) {
 		data[i + 7],
 	}
 	rb.i += 8
+	rb.handled += 8
 	return b, nil
 }
 
@@ -71,6 +77,7 @@ buffer_mask_remaining :: proc(rb: ^Buffer, len: uint) -> (err: ParseError) {
 		data[i + int(j)] = data[i + int(j)] ~ masking_key[j % 4]
 	}
 	return nil
+
 }
 
 buffer_combine :: proc(uncomplete: ^Buffer, read: ^Buffer) {
@@ -85,9 +92,9 @@ import "core:testing"
 
 @(test)
 test_buffer_combine :: proc(t: ^testing.T) {
-	uncomplete := Buffer{4, []byte{103, 104, 105, 106, 107, 108, 109}}
+	uncomplete := Buffer{4, 4, []byte{103, 104, 105, 106, 107, 108, 109}}
 
-	read := Buffer{6, []byte{110, 111, 112, 113, 114, 115, 116, 117}}
+	read := Buffer{6, 4, []byte{110, 111, 112, 113, 114, 115, 116, 117}}
 
 	combined := Buffer {
 		i = 0,

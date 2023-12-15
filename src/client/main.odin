@@ -49,12 +49,23 @@ Error :: union #shared_nil {
 
 str := "{\"op\": \"subscribe\",\"args\": [\"orderbook.50.BTCUSDT\"]}"
 
+import "core:strings"
+
 handle_message :: proc(frame: Frame, err: Error) {
 	if err != nil {
 		log.error(frame, err)
 		os.exit(1)
 	} else {
-		log.debug(string(frame.payload))
+		str := string(frame.payload)
+		if len(str) == 0 {
+			log.error("empty")
+			os.exit(1)
+		} else if !strings.has_suffix(str, "}") {
+			log.error("does not end in '}'")
+			log.error(str)
+			os.exit(1)
+		}
+		// log.debug(string(frame.payload))
 	}
 }
 

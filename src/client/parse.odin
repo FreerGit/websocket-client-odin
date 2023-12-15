@@ -36,6 +36,7 @@ InvalidOpcode :: struct {
 
 FrameNotComplete :: struct {
 	rest: []byte,
+	i: int,
 }
 
 EOF :: struct {}
@@ -76,20 +77,17 @@ parse_header :: proc(buffer: ^Buffer, frame: ^Frame) -> (err: ParseError) {
 	frame.fin = (head & 0x80) == 0x80
 	frame.opcode = get_opcode(head & 0x0F) or_return
 
-	log.debug(frame.fin)
-	log.debug(frame.opcode)
-
 	length := buffer_pull_u8(buffer) or_return
 	frame.mask = length & 0x80 == 0x80
 	frame.payload_len = uint(length & 0x7F)
 
 	if (!frame.fin && len(buffer.data) < int(frame.payload_len)) {
-		log.debug("LFDSKFJLSD:LSF")
 		// frame.payload = {head, len}
 		buffer_unread_u16(buffer)
 		return(
 			FrameNotComplete {
 				rest = buffer.data,
+				i = len(buffer.data)
 			} 
 		)
 	}
@@ -123,9 +121,11 @@ parse_message :: proc(buffer: ^Buffer, frame: ^Frame)  -> (err: ParseError) {
 	// 	return FrameNotComplete{rest = buffer_pull_frame(rb, frame.payload_len) or_return}
 	// }
 
-	buf, index_error := buffer_pull(buffer, frame.payload_len) 
+	buf, index_error := buffer_pull(buffer, frame.payload_len)
+	buffer.handled = 0 
 	if index_error != nil {
-		return FrameNotComplete {rest = buf}
+		
+		return FrameNotComplete {rest = buf, i = len(buf)}
 	}
 	frame.payload = buf
 	// log.debug(string(rb.data[rb.i:]))
@@ -145,15 +145,10 @@ parse_message :: proc(buffer: ^Buffer, frame: ^Frame)  -> (err: ParseError) {
 	return nil
 }
 
-parse_frame :: proc(read: ^Buffer, uncomplete: ^Buffer) -> (frame: Frame, err: ParseError) {
-	log.debug(read.i, len(read.data))
+parse_frame :: proc(read: ^Buffer) -> (frame: Frame, err: ParseError) {
 	if (read.i == len(read.data)) {
 		return Frame{}, EOF{}
 	} 
-	if len(uncomplete.data) != 0 {
-		buffer_combine(uncomplete, read)
-	}
-
 
 	parse_header(read, &frame) or_return
 	parse_payload_length(read, &frame) or_return
