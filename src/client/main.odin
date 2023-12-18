@@ -1,6 +1,6 @@
 package client
 
-import openssl "../../deps/odin-http/openssl"
+import openssl "../../deps/openssl"
 import "../domain"
 
 
@@ -65,7 +65,8 @@ handle_message :: proc(frame: Frame, err: Error) {
 			log.error(str)
 			os.exit(1)
 		}
-		// log.debug(string(frame.payload))
+		log.debug(str)
+
 	}
 }
 
@@ -76,8 +77,7 @@ main :: proc() {
 	context.logger = log.create_console_logger()
 
 	target := "wss://stream.bybit.com/v5/public/spot"
-	// TODO: should take a client? return a client? change this api
-	res, err := connect(target)
+	// target := "ws://127.0.0.1:9001"
 
 
 	fragment_serialization_buffer: [256 * mem.Kilobyte]byte
@@ -93,40 +93,29 @@ main :: proc() {
 		mask = true,
 		mask_key = mask_key,
 	}
-	// log.debug(len(transmute([]u8)str))
 
-	#partial switch comm in res._socket {
-	// case net.TCP_Socket:
-	// stream = tcp_stream(comm)
-	case SSL_Communication:
-		serialized_data, serialize_error := serialize_websocket_fragment(
-			fragment_serialization_buffer[:],
-			sub_fragment,
-		)
+	serialized_data, serialize_error := serialize_websocket_fragment(
+		fragment_serialization_buffer[:],
+		sub_fragment,
+	)
 
-		// TODO: write function
-		fmt.println(openssl.SSL_write(comm.ssl, raw_data(serialized_data), i32(len(serialized_data))))
-
-		// TODO: init function
-		// TODO: cleanup function?
-		client := ClientTLS {
-			socket = comm,
-		}
-
-		run(&client, handle_message)
-
-
+	// TODO: should take a client? return a client? change this api
+	res, err := connect(target)
+	if err != nil {
+		log.error((err))
 	}
 
+	client := Client {
+		socket = res._socket,
+	}
 
-	// defer response_destroy(&res)
-	// body, allocation, berr := response_body(&res)
-	// if berr != nil {
-	// 	fmt.printf("Error retrieving response body: %s", berr)
-	// 	return
-	// }
-	// defer body_destroy(body, allocation)
-	// log.debug("hej")
-	// fmt.println(body)
-	// // bufio.
+	bytes_sent, write_err := write(&client, serialized_data)
+
+	// TODO: write function
+	// fmt.println(fmt.println(net.send_tcp(comm, serialized_data)))
+
+
+	run(&client, handle_message)
+
+
 }

@@ -1,8 +1,8 @@
 //+private
 package client
 
-import http "../../deps/odin-http/"
-import openssl "../../deps/odin-http/openssl"
+// import http "../../deps/odin-http/"
+import openssl "../../deps/openssl"
 import "../domain"
 
 import "core:bufio"
@@ -26,7 +26,13 @@ request_destroy :: proc(r: ^Request) {
 	bytes.buffer_destroy(&r.body)
 }
 
-format_request :: proc(target: domain.URL, request: ^Request, allocator := context.allocator) -> (buf: bytes.Buffer) {
+format_request :: proc(
+	target: domain.URL,
+	request: ^Request,
+	allocator := context.allocator,
+) -> (
+	buf: bytes.Buffer,
+) {
 	// Responses are on average at least 100 bytes, so lets start there, but add the body's length.
 	bytes.buffer_init_allocator(&buf, 0, bytes.buffer_length(&request.body) + 100, allocator)
 
@@ -104,7 +110,13 @@ Response :: struct {
 }
 
 
-parse_response :: proc(socket: Communication, allocator := context.allocator) -> (res: Response, err: Error) {
+parse_response :: proc(
+	socket: Communication,
+	allocator := context.allocator,
+) -> (
+	res: Response,
+	err: Error,
+) {
 	res._socket = socket
 
 	stream: io.Stream
@@ -131,7 +143,7 @@ parse_response :: proc(socket: Communication, allocator := context.allocator) ->
 	rline_str := bufio.scanner_text(&scanner)
 	si := strings.index_byte(rline_str, ' ')
 
-	version, ok := http.version_parse(rline_str[:si])
+	version, ok := domain.version_parse(rline_str[:si])
 	if !ok {
 		err = Request_Error.Invalid_Response_HTTP_Version
 		return
@@ -192,7 +204,14 @@ parse_response :: proc(socket: Communication, allocator := context.allocator) ->
 }
 
 
-request :: proc(target: string, request: ^Request, allocator := context.allocator) -> (res: Response, err: Error) {
+request :: proc(
+	target: string,
+	request: ^Request,
+	allocator := context.allocator,
+) -> (
+	res: Response,
+	err: Error,
+) {
 	url, endpoint := parse_endpoint(target) or_return
 	defer delete(url.queries)
 
@@ -477,7 +496,11 @@ _parse_body :: proc(
 
 			val, val_decoded_ok := net.percent_decode(keyvalue[seperator + 1:], allocator)
 			if !val_decoded_ok {
-				log.warnf("url encoded body value %q for key %q could not be decoded", keyvalue[seperator + 1:], key)
+				log.warnf(
+					"url encoded body value %q for key %q could not be decoded",
+					keyvalue[seperator + 1:],
+					key,
+				)
 				continue
 			}
 
@@ -495,7 +518,15 @@ _response_till_close :: proc(_body: ^bufio.Scanner, max_length: int) -> (string,
 	defer _body.max_token_size = bufio.DEFAULT_MAX_SCAN_TOKEN_SIZE
 
 	_body.split =
-	proc(data: []byte, at_eof: bool) -> (advance: int, token: []byte, err: bufio.Scanner_Error, final_token: bool) {
+	proc(
+		data: []byte,
+		at_eof: bool,
+	) -> (
+		advance: int,
+		token: []byte,
+		err: bufio.Scanner_Error,
+		final_token: bool,
+	) {
 		if at_eof {
 			return len(data), data, nil, true
 		}

@@ -123,7 +123,14 @@ headers_set_close :: #force_inline proc(h: ^Headers) {
 	headers_set_unsafe(h, "connection", "close")
 }
 
-header_parse :: proc(headers: ^Headers, line: string, allocator := context.temp_allocator) -> (key: string, ok: bool) {
+header_parse :: proc(
+	headers: ^Headers,
+	line: string,
+	allocator := context.temp_allocator,
+) -> (
+	key: string,
+	ok: bool,
+) {
 	// Preceding spaces should not be allowed.
 	(len(line) > 0 && line[0] != ' ') or_return
 
@@ -244,4 +251,23 @@ header_allowed_trailer :: proc(key: string) -> bool {
         key != "content-range" &&
         key != "trailer")
 	// odinfmt:enable
+}
+
+Version :: struct {
+	major: u8,
+	minor: u8,
+}
+
+
+// Parses an HTTP version string according to RFC 7230, section 2.6.
+version_parse :: proc(s: string) -> (version: Version, ok: bool) {
+	(len(s) > 5) or_return
+	(s[:5] == "HTTP/") or_return
+	version.major = u8(int(rune(s[5])) - '0')
+	if len(s) > 6 {
+		(s[6] == '.') or_return
+		version.minor = u8(int(rune(s[7])) - '0')
+	}
+	ok = true
+	return
 }

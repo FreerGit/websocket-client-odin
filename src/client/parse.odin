@@ -115,12 +115,6 @@ parse_payload_length :: proc(buffer: ^Buffer, frame: ^Frame) -> (err: ParseError
 }
 
 parse_message :: proc(buffer: ^Buffer, frame: ^Frame)  -> (err: ParseError) {
-
-	// if (len(rb.data) < int(frame.payload_len)) {
-	// 	log.error(len(rb.data), frame.payload_len)
-	// 	return FrameNotComplete{rest = buffer_pull_frame(rb, frame.payload_len) or_return}
-	// }
-
 	buf, index_error := buffer_pull(buffer, frame.payload_len)
 	buffer.handled = 0 
 	if index_error != nil {
