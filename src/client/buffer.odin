@@ -19,13 +19,11 @@ buffer_pull :: proc(rb: ^Buffer, take: uint) -> (buf: []byte, err: ParseError) {
 	return
 }
 
-
 buffer_unread_u16 :: #force_inline proc(rb: ^Buffer) {
 	rb.i -= 2
 }
 
 buffer_pull_u8 :: proc(rb: ^Buffer) -> (buf: byte, err: ParseError) {
-	// return  or_return, nil
 	d := rb.data[rb.i]
 	rb.i += 1
 	rb.handled += 1
@@ -86,8 +84,6 @@ buffer_combine :: proc(uncomplete: ^Buffer, read: ^Buffer) {
 	read.data = buf
 	read.i = 0
 }
-
-
 import "core:testing"
 
 @(test)

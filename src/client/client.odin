@@ -10,11 +10,9 @@ import "core:net"
 import "core:os"
 import "core:time"
 
-
 Client :: struct {
 	socket:      Communication,
 	read_buffer: Buffer,
-	// fragment_buffer: Buffer,
 }
 
 Frame :: struct {
@@ -56,16 +54,15 @@ read :: proc(client: ^Client, buffer: ^[]byte, index: int) -> (bytes_read: int, 
 	case net.TCP_Socket:
 		return net.recv_tcp(sock, buffer^[index:])
 	}
-	log.error("what?", client.socket)
 	os.exit(1)
 }
 
+// import "core:mem"
 
-OnMessage :: proc(msg: Frame, err: Error)
+OnMessage :: proc(msg: Frame, err: Error, allocator := context.allocator)
 
 run :: proc(client: ^Client, handle_message: OnMessage) -> (msg: Frame, err: Error) {
-	// offset := 0
-	recv_buffer := make([]byte, 32 * mem.Kilobyte) // res._socket
+	recv_buffer := make([]byte, 32 * mem.Kilobyte)
 	buffer := Buffer{}
 	for {
 		bytes_read := read(client, &recv_buffer, buffer.i) or_return
@@ -75,43 +72,24 @@ run :: proc(client: ^Client, handle_message: OnMessage) -> (msg: Frame, err: Err
 			i    = 0,
 		}
 		cont := true
-		n := 0
 		for cont {
 			frame, e := parse_frame(&client.read_buffer)
-			// log.debug(frame, bytes_read)
 			#partial switch v in e {
 			case FrameNotComplete:
 				buffer = Buffer{v.i, 0, v.rest}
 				copy(recv_buffer[:len(buffer.data)], buffer.data[:])
 				buffer.data = {}
 				cont = false
-			// os.exit(1)
 			case EOF:
 				cont = false
 				buffer = {}
-				log.debug("EOF")
 			case nil:
-				n += 1
-				// log.error("??")
-				if n > 40 {
-					os.exit(1)
-				}
 				handle_message(frame, v)
 			case:
-				log.error("|")
+				log.error(frame)
+				log.error(string(frame.payload))
 				os.exit(1)
 			}
-			// handle_message(frame, err)
 		}
-
-		t2 := time.now()
-
-		log.debug(time.duration_nanoseconds(time.diff(t1, t2)))
 	}
-
 }
-
-//
-
-
-// OnMessage :: proc(text: string, err: Error)

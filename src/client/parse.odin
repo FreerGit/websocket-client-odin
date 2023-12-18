@@ -36,7 +36,7 @@ InvalidOpcode :: struct {
 
 FrameNotComplete :: struct {
 	rest: []byte,
-	i: int,
+	i:    int,
 }
 
 EOF :: struct {}
@@ -82,14 +82,8 @@ parse_header :: proc(buffer: ^Buffer, frame: ^Frame) -> (err: ParseError) {
 	frame.payload_len = uint(length & 0x7F)
 
 	if (!frame.fin && len(buffer.data) < int(frame.payload_len)) {
-		// frame.payload = {head, len}
 		buffer_unread_u16(buffer)
-		return(
-			FrameNotComplete {
-				rest = buffer.data,
-				i = len(buffer.data)
-			} 
-		)
+		return FrameNotComplete{rest = buffer.data, i = len(buffer.data)}
 	}
 	return nil
 }
@@ -114,12 +108,12 @@ parse_payload_length :: proc(buffer: ^Buffer, frame: ^Frame) -> (err: ParseError
 	return nil
 }
 
-parse_message :: proc(buffer: ^Buffer, frame: ^Frame)  -> (err: ParseError) {
+parse_message :: proc(buffer: ^Buffer, frame: ^Frame) -> (err: ParseError) {
 	buf, index_error := buffer_pull(buffer, frame.payload_len)
-	buffer.handled = 0 
+	buffer.handled = 0
 	if index_error != nil {
-		
-		return FrameNotComplete {rest = buf, i = len(buf)}
+
+		return FrameNotComplete{rest = buf, i = len(buf)}
 	}
 	frame.payload = buf
 	// log.debug(string(rb.data[rb.i:]))
@@ -142,24 +136,10 @@ parse_message :: proc(buffer: ^Buffer, frame: ^Frame)  -> (err: ParseError) {
 parse_frame :: proc(read: ^Buffer) -> (frame: Frame, err: ParseError) {
 	if (read.i == len(read.data)) {
 		return Frame{}, EOF{}
-	} 
+	}
 
 	parse_header(read, &frame) or_return
 	parse_payload_length(read, &frame) or_return
 	p_err := parse_message(read, &frame)
 	return frame, p_err
-	// #partial switch v in p_err {
-	// // case EndOfPayload:
-	// // 	// go left by 2 bytes, need the headers!
-	// // 	return client.r_buffer.data[client.r_buffer.i:], v
-	// case:
-	// 	return false, v
-	// }
-	// return false, nil
 }
-
-// cleanup_after_parsing :: proc(client: ^Client) {
-// 	client.frame = {}
-// 	client.r_buffer = {}
-// }
-// read :: proc(client: ^Client) -> 

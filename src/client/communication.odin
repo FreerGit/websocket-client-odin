@@ -1,7 +1,6 @@
 //+private
 package client
 
-// import http "../../deps/odin-http/"
 import openssl "../../deps/openssl"
 import "../domain"
 
@@ -13,7 +12,6 @@ import "core:log"
 import "core:net"
 import "core:strconv"
 import "core:strings"
-
 
 // Initializes the request with sane defaults using the given allocator.
 request_init :: proc(r: ^Request, allocator := context.allocator) {
@@ -176,20 +174,6 @@ parse_response :: proc(
 			err = Request_Error.Invalid_Response_Header
 			return
 		}
-
-		// if key == "set-cookie" {
-		// 	cookie_str := domain.headers_get_unsafe(res.headers, "set-cookie")
-		// 	domain.headers_delete_unsafe(&res.headers, "set-cookie")
-		// 	delete(key)
-
-		// 	cookie, ok := http.cookie_parse(cookie_str, allocator)
-		// 	if !ok {
-		// 		err = Request_Error.Invalid_Response_Cookie
-		// 		return
-		// 	}
-
-		// 	append(&res.cookies, cookie)
-		// }
 	}
 
 	if !domain.headers_validate(&res.headers) {
@@ -202,7 +186,6 @@ parse_response :: proc(
 	res._body = scanner
 	return res, nil
 }
-
 
 request :: proc(
 	target: string,

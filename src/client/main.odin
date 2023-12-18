@@ -3,7 +3,6 @@ package client
 import openssl "../../deps/openssl"
 import "../domain"
 
-
 import "core:bufio"
 import "core:bytes"
 import "core:crypto"
@@ -49,24 +48,39 @@ Error :: union #shared_nil {
 
 str := "{\"op\": \"subscribe\",\"args\": [\"orderbook.50.BTCUSDT\"]}"
 
+import "core:encoding/json"
+import "core:mem/virtual"
 import "core:strings"
 
-handle_message :: proc(frame: Frame, err: Error) {
+OrderbookSmtg :: struct {
+	topic: string,
+	type:  string,
+	data:  SomeUpdate,
+	ts:    u64,
+	cts:   u64,
+}
+
+SomeUpdate :: struct {
+	s:   string,
+	u:   u64,
+	seq: u64,
+	b:   [][2]string,
+	a:   [][2]string,
+}
+
+handle_message :: proc(frame: Frame, err: Error, allocator := context.allocator) {
 	if err != nil {
 		log.error(frame, err)
 		os.exit(1)
 	} else {
 		str := string(frame.payload)
-		if len(str) == 0 {
-			log.error("empty")
-			os.exit(1)
-		} else if !strings.has_suffix(str, "}") {
-			log.error("does not end in '}'")
-			log.error(str)
-			os.exit(1)
+		@(static)
+		ob: OrderbookSmtg
+		parse_err := json.unmarshal(frame.payload, &ob, .JSON, allocator)
+		if parse_err != nil {
+			log.error(parse_err)
 		}
-		log.debug(str)
-
+		ob = {}
 	}
 }
 
@@ -77,8 +91,6 @@ main :: proc() {
 	context.logger = log.create_console_logger()
 
 	target := "wss://stream.bybit.com/v5/public/spot"
-	// target := "ws://127.0.0.1:9001"
-
 
 	fragment_serialization_buffer: [256 * mem.Kilobyte]byte
 	mask_key: [4]byte
@@ -110,10 +122,6 @@ main :: proc() {
 	}
 
 	bytes_sent, write_err := write(&client, serialized_data)
-
-	// TODO: write function
-	// fmt.println(fmt.println(net.send_tcp(comm, serialized_data)))
-
 
 	run(&client, handle_message)
 
