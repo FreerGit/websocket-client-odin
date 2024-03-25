@@ -251,6 +251,13 @@ ssl_tcp_stream :: proc(sock: ^openssl.SSL) -> (s: io.Stream) {
 	return s
 }
 
+tcp_stream :: proc(sock: net.TCP_Socket) -> (s: io.Stream) {
+	s.data = rawptr(uintptr(sock))
+	s.procedure = _socket_stream_proc
+	return s
+}
+
+
 @(private)
 _ssl_stream_proc :: proc(
 	stream_data: rawptr,
@@ -279,12 +286,6 @@ _ssl_stream_proc :: proc(
 	return
 }
 
-// Wraps a tcp socket with a stream.
-tcp_stream :: proc(sock: net.TCP_Socket) -> (s: io.Stream) {
-	s.data = rawptr(uintptr(sock))
-	s.procedure = _socket_stream_proc
-	return s
-}
 
 @(private)
 _socket_stream_proc :: proc(
@@ -443,10 +444,6 @@ _parse_body :: proc(
 	enc, has_enc := domain.headers_get_unsafe(headers^, "transfer-encoding")
 	length, has_length := domain.headers_get_unsafe(headers^, "content-length")
 	switch {
-	case has_enc && strings.has_suffix(enc, "chunked"):
-		was_allocation = true
-		body = _response_body_chunked(headers, _body, max_length, allocator) or_return
-
 	case has_length:
 		body = _response_body_length(_body, max_length, length) or_return
 
@@ -529,8 +526,7 @@ _response_till_close :: proc(_body: ^bufio.Scanner, max_length: int) -> (string,
 	return bufio.scanner_text(_body), .None
 }
 
-// "Decodes" a response body based on the content length header.
-// Meant for internal usage, you should use `client.response_body`.
+@(private)
 _response_body_length :: proc(_body: ^bufio.Scanner, max_length: int, len: string) -> (string, Body_Error) {
 	ilen, lenok := strconv.parse_int(len, 10)
 	if !lenok {
@@ -561,129 +557,6 @@ _response_body_length :: proc(_body: ^bufio.Scanner, max_length: int, len: strin
 	}
 
 	return bufio.scanner_text(_body), .None
-}
-
-// "Decodes" a chunked transfer encoded request body.
-// Meant for internal usage, you should use `client.response_body`.
-//
-// RFC 7230 4.1.3 pseudo-code:
-//
-// length := 0
-// read chunk-size, chunk-ext (if any), and CRLF
-// while (chunk-size > 0) {
-//    read chunk-data and CRLF
-//    append chunk-data to decoded-body
-//    length := length + chunk-size
-//    read chunk-size, chunk-ext (if any), and CRLF
-// }
-// read trailer field
-// while (trailer field is not empty) {
-//    if (trailer field is allowed to be sent in a trailer) {
-//    	append trailer field to existing header fields
-//    }
-//    read trailer-field
-// }
-// Content-Length := length
-// Remove "chunked" from Transfer-Encoding
-// Remove Trailer from existing header fields
-_response_body_chunked :: proc(
-	headers: ^domain.Headers,
-	_body: ^bufio.Scanner,
-	max_length: int,
-	allocator := context.allocator,
-) -> (
-	body: string,
-	err: Body_Error,
-) {
-	body_buff: bytes.Buffer
-
-	bytes.buffer_init_allocator(&body_buff, 0, 0, allocator)
-	defer if err != nil do bytes.buffer_destroy(&body_buff)
-
-	for {
-		if !bufio.scanner_scan(_body) {
-			return "", .Scan_Failed
-		}
-
-		size_line := bufio.scanner_bytes(_body)
-
-		// If there is a semicolon, discard everything after it,
-		// that would be chunk extensions which we currently have no interest in.
-		if semi := bytes.index_byte(size_line, ';'); semi > -1 {
-			size_line = size_line[:semi]
-		}
-
-		size, ok := strconv.parse_int(string(size_line), 16)
-		if !ok {
-			err = .Invalid_Chunk_Size
-			return
-		}
-		if size == 0 do break
-
-		if max_length > -1 && bytes.buffer_length(&body_buff) + size > max_length {
-			return "", .Too_Long
-		}
-
-		// user_index is used to set the amount of bytes to scan in scan_num_bytes.
-		context.user_index = size
-
-		_body.max_token_size = size
-		_body.split = scan_num_bytes
-
-		if !bufio.scanner_scan(_body) {
-			return "", .Scan_Failed
-		}
-
-		_body.max_token_size = bufio.DEFAULT_MAX_SCAN_TOKEN_SIZE
-		_body.split = bufio.scan_lines
-
-		bytes.buffer_write(&body_buff, bufio.scanner_bytes(_body))
-
-		// Read empty line after chunk.
-		if !bufio.scanner_scan(_body) {
-			return "", .Scan_Failed
-		}
-		assert(bufio.scanner_text(_body) == "")
-	}
-
-	// Read trailing empty line (after body, before trailing headers).
-	if !bufio.scanner_scan(_body) || bufio.scanner_text(_body) != "" {
-		return "", .Scan_Failed
-	}
-
-	// Keep parsing the request as line delimited headers until we get to an empty line.
-	for {
-		// If there are no trailing headers, this case is hit.
-		if !bufio.scanner_scan(_body) {
-			break
-		}
-
-		line := bufio.scanner_text(_body)
-
-		// The first empty line denotes the end of the headers section.
-		if line == "" {
-			break
-		}
-
-		key, ok := domain.header_parse(headers, line)
-		if !ok {
-			return "", .Invalid_Trailer_Header
-		}
-
-		// A recipient MUST ignore (or consider as an error) any fields that are forbidden to be sent in a trailer.
-		if !domain.header_allowed_trailer(key) {
-			domain.headers_delete(headers, key)
-		}
-	}
-
-	if domain.headers_has(headers^, "trailer") {
-		domain.headers_delete_unsafe(headers, "trailer")
-	}
-
-	te := strings.trim_suffix(domain.headers_get_unsafe(headers^, "transfer-encoding"), "chunked")
-	domain.headers_set_unsafe(headers, "transfer-encoding", te)
-
-	return bytes.buffer_to_string(&body_buff), .None
 }
 
 // A scanner bufio.Split_Proc implementation to scan a given amount of bytes.

@@ -71,41 +71,6 @@ Status :: enum {
 
 _status_strings: [max(Status) + Status(1)]string
 
-// Populates the status_strings like a map from status to their string representation.
-// Where an empty string means an invalid code.
-@(init, private)
-status_strings_init :: proc() {
-	for field in Status {
-		name, ok := fmt.enum_value_to_string(field)
-		assert(ok)
-
-		b: strings.Builder
-		strings.write_int(&b, int(field))
-		strings.write_byte(&b, ' ')
-
-		// Some edge cases aside, replaces underscores in the enum name with spaces.
-		#partial switch field {
-		case .Non_Authoritative_Information:
-			strings.write_string(&b, "Non-Authoritative Information")
-		case .Multi_Status:
-			strings.write_string(&b, "Multi-Status")
-		case .Im_A_Teapot:
-			strings.write_string(&b, "I'm a teapot")
-		case:
-			for c in name {
-				switch c {
-				case '_':
-					strings.write_rune(&b, ' ')
-				case:
-					strings.write_rune(&b, c)
-				}
-			}
-		}
-
-		_status_strings[field] = strings.to_string(b)
-	}
-}
-
 status_string :: proc(s: Status) -> string {
 	if s >= Status(0) && s <= max(Status) {
 		return _status_strings[s]
@@ -114,19 +79,8 @@ status_string :: proc(s: Status) -> string {
 	return ""
 }
 
-status_valid :: proc(s: Status) -> bool {
-	return status_string(s) != ""
-}
-
 status_from_string :: proc(s: string) -> (Status, bool) {
 	if len(s) < 3 do return {}, false
-
-	// Turns the string of length 3 into an int.
-	// It goes from right to left, increasing a multiplier (for base 10).
-	// Say we got status "123"
-	// i == 0, b == "3", (b - '0') == 3, code_int += 3 * 1
-	// i == 1, b == "2", (b - '0') == 2, code_int += 2 * 10
-	// i == 2, b == "1", (b - '0') == 1, code_int += 1 * 100
 
 	code := s[:3]
 	code_int: int
@@ -137,29 +91,9 @@ status_from_string :: proc(s: string) -> (Status, bool) {
 		multiplier *= 10
 	}
 
-	if !status_valid(Status(code_int)) {
+	if (status_string(Status(code_int)) == "") {
 		return {}, false
 	}
 
 	return Status(code_int), true
-}
-
-status_is_informational :: proc(s: Status) -> bool {
-	return s >= Status(100) && s < Status(200)
-}
-
-status_is_success :: proc(s: Status) -> bool {
-	return s >= Status(200) && s < Status(300)
-}
-
-status_is_redirect :: proc(s: Status) -> bool {
-	return s >= Status(300) && s < Status(400)
-}
-
-status_is_client_error :: proc(s: Status) -> bool {
-	return s >= Status(400) && s < Status(500)
-}
-
-status_is_server_error :: proc(s: Status) -> bool {
-	return s >= Status(500) && s < Status(600)
 }

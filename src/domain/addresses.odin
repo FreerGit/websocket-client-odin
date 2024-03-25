@@ -7,9 +7,6 @@ URL :: struct {
 	scheme:  string,
 	host:    string,
 	path:    string,
-	// TODO/PERF: remove, add a simple string called 'search_params', and provide a procedure to
-	// turn it into a map, saves having to allocate and parse for every request.
-	// url_parse won't have to allocate then either.
 	queries: map[string]string,
 }
 

@@ -64,8 +64,8 @@ SomeUpdate :: struct {
 	s:   string,
 	u:   u64,
 	seq: u64,
-	b:   [][2]string,
-	a:   [][2]string,
+	b:   [][2]f64,
+	a:   [][2]f64,
 }
 
 handle_message :: proc(frame: Frame, err: Error, allocator := context.allocator) {
@@ -80,6 +80,7 @@ handle_message :: proc(frame: Frame, err: Error, allocator := context.allocator)
 		if parse_err != nil {
 			log.error(parse_err)
 		}
+		fmt.println(ob)
 		ob = {}
 	}
 }
