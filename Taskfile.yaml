@@ -3,7 +3,7 @@ version: '3'
 tasks:
   build:
     cmds:
-      - odin build src/client -out:target/client -o:none -debug
+      - odin build src/client -out:target/client -o:none -debug -error-pos-style:unix 
     sources:
       - ./src/**/*.odin
       - ./deps/**/*.odin

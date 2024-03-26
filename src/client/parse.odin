@@ -41,52 +41,52 @@ FrameNotComplete :: struct {
 
 EOF :: struct {}
 
-Opcode :: enum u8 {
-	Continue,
-	Text,
-	Binary,
-	Close,
-	Ping,
-	Pong,
-}
+// Opcode :: enum u8 {
+// 	Continue,
+// 	Text,
+// 	Binary,
+// 	Close,
+// 	Ping,
+// 	Pong,
+// }
 
-get_opcode :: proc(byte: u8) -> (opcode: Opcode, err: ParseError) {
-	switch byte {
-	case 0x1:
-		return .Text, nil
-	case 0x0:
-		return .Continue, nil
-	case 0x2:
-		return .Binary, nil
-	case 0x8:
-		return .Close, nil
-	case 0x9:
-		return .Ping, nil
-	case 0xA:
-		return .Pong, nil
-	case:
-		return nil, InvalidOpcode{byte}
-	}
-}
+// get_opcode :: proc(byte: u8) -> (opcode: Opcode, err: ParseError) {
+// 	switch byte {
+// 	case 0x1:
+// 		return .Text, nil
+// 	case 0x0:
+// 		return .Continue, nil
+// 	case 0x2:
+// 		return .Binary, nil
+// 	case 0x8:
+// 		return .Close, nil
+// 	case 0x9:
+// 		return .Ping, nil
+// 	case 0xA:
+// 		return .Pong, nil
+// 	case:
+// 		return nil, InvalidOpcode{byte}
+// 	}
+// }
 
-parse_header :: proc(buffer: ^Buffer, frame: ^Frame) -> (err: ParseError) {
-	if (len(buffer.data[buffer.i:]) < 2) {
-		return NoHeader{}
-	}
-	head := buffer_pull_u8(buffer) or_return
-	frame.fin = (head & 0x80) == 0x80
-	frame.opcode = get_opcode(head & 0x0F) or_return
+// parse_header :: proc(buffer: ^Buffer, frame: ^Frame) -> (err: ParseError) {
+// 	if (len(buffer.data[buffer.i:]) < 2) {
+// 		return NoHeader{}
+// 	}
+// 	head := buffer_pull_u8(buffer) or_return
+// 	frame.fin = (head & 0x80) == 0x80
+// 	frame.opcode = get_opcode(head & 0x0F) or_return
 
-	length := buffer_pull_u8(buffer) or_return
-	frame.mask = length & 0x80 == 0x80
-	frame.payload_len = uint(length & 0x7F)
+// 	length := buffer_pull_u8(buffer) or_return
+// 	frame.mask = length & 0x80 == 0x80
+// 	frame.payload_len = uint(length & 0x7F)
 
-	if (!frame.fin && len(buffer.data) < int(frame.payload_len)) {
-		buffer_unread_u16(buffer)
-		return FrameNotComplete{rest = buffer.data, i = len(buffer.data)}
-	}
-	return nil
-}
+// 	if (!frame.fin && len(buffer.data) < int(frame.payload_len)) {
+// 		buffer_unread_u16(buffer)
+// 		return FrameNotComplete{rest = buffer.data, i = len(buffer.data)}
+// 	}
+// 	return nil
+// }
 
 parse_payload_length :: proc(buffer: ^Buffer, frame: ^Frame) -> (err: ParseError) {
 
@@ -133,13 +133,13 @@ parse_message :: proc(buffer: ^Buffer, frame: ^Frame) -> (err: ParseError) {
 	return nil
 }
 
-parse_frame :: proc(read: ^Buffer) -> (frame: Frame, err: ParseError) {
-	if (read.i == len(read.data)) {
-		return Frame{}, EOF{}
-	}
+// parse_frame :: proc(read: ^Buffer) -> (frame: Frame, err: ParseError) {
+// 	if (read.i == len(read.data)) {
+// 		return Frame{}, EOF{}
+// 	}
 
-	parse_header(read, &frame) or_return
-	parse_payload_length(read, &frame) or_return
-	p_err := parse_message(read, &frame)
-	return frame, p_err
-}
+// 	parse_header(read, &frame) or_return
+// 	parse_payload_length(read, &frame) or_return
+// 	p_err := parse_message(read, &frame)
+// 	return frame, p_err
+// }

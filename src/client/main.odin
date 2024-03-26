@@ -29,27 +29,21 @@ Request_Error :: enum {
 	Invalid_Response_Cookie,
 }
 
-SSL_Error :: enum {
-	Controlled_Shutdown,
-	Fatal_Shutdown,
-	SSL_Write_Failed,
-}
 
 Error :: union #shared_nil {
-	net.Dial_Error,
-	net.Parse_Endpoint_Error,
-	net.Network_Error,
+	// net.Dial_Error,
+	// net.Parse_Endpoint_Error,
+	// net.Network_Error,
 	bufio.Scanner_Error,
 	Request_Error,
-	SSL_Error,
+	Connection_Error,
 	ParseError,
 }
 
 
-str := "{\"op\": \"subscribe\",\"args\": [\"orderbook.50.BTCUSDT\"]}"
+str := "{\"op\": \"subscribe\",\"args\": [\"orderbook.1.BTCUSDT\"]}"
 
 import "core:encoding/json"
-import "core:mem/virtual"
 import "core:strings"
 
 OrderbookSmtg :: struct {
@@ -91,40 +85,21 @@ main :: proc() {
 
 	context.logger = log.create_console_logger()
 
-	target := "wss://stream.bybit.com/v5/public/spot"
+	// scratch := mem.Scratch_Allocator{}
+	// fba := mem.scratch_allocator_init(&scratch, 8 * 64 * 1024)
 
-	fragment_serialization_buffer: [256 * mem.Kilobyte]byte
-	mask_key: [4]byte
-	crypto.rand_bytes(mask_key[:])
+	client := client_init()
+	defer client_deinit(&client)
 
-	b: bytes.Buffer
-	bytes.buffer_init_string(&b, str)
-
-	sub_fragment := Websocket_Fragment {
-		data = Text_Data{payload = bytes.buffer_to_bytes(&b)},
-		final = true,
-		mask = true,
-		mask_key = mask_key,
-	}
-
-	serialized_data, serialize_error := serialize_websocket_fragment(
-		fragment_serialization_buffer[:],
-		sub_fragment,
-	)
-
-	// TODO: should take a client? return a client? change this api
-	res, err := connect(target)
+	connection, err := client_connect(&client, "wss://stream.bybit.com/v5/public/linear")
 	if err != nil {
-		log.error((err))
+		log.error(err)
 	}
 
-	client := Client {
-		socket = res._socket,
+	write_err := connection_write(&connection, str)
+	if write_err != nil {
+		log.error(write_err)
 	}
-
-	bytes_sent, write_err := write(&client, serialized_data)
-
-	run(&client, handle_message)
-
-
+	msg, recv_err := connection_recv(&connection)
+	fmt.println(msg, recv_err)
 }

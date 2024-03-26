@@ -2,7 +2,7 @@
 package client
 
 import openssl "../../deps/openssl"
-import "../domain"
+import domain "../domain"
 
 import "core:bufio"
 import "core:bytes"
@@ -65,28 +65,6 @@ format_request :: proc(
 	return
 }
 
-parse_endpoint :: proc(target: string) -> (url: domain.URL, endpoint: net.Endpoint, err: net.Network_Error) {
-	url = domain.url_parse(target)
-	host_or_endpoint := net.parse_hostname_or_endpoint(url.host) or_return
-
-	switch t in host_or_endpoint {
-	case net.Endpoint:
-		endpoint = t
-		return
-	case net.Host:
-		ep4, ep6 := net.resolve(t.hostname) or_return
-		endpoint = ep4 if ep4.address != nil else ep6
-
-		endpoint.port = t.port
-		if endpoint.port == 0 {
-			endpoint.port = url.scheme == "https" || url.scheme == "wss" ? 443 : 80
-		}
-		return
-	case:
-		unreachable()
-	}
-}
-
 SSL_Communication :: struct {
 	socket: net.TCP_Socket,
 	ssl:    ^openssl.SSL,
@@ -99,17 +77,17 @@ Communication :: union {
 }
 
 Response :: struct {
-	status:    domain.Status,
+	status:    int,
 	// headers and cookies should be considered read-only, after a response is returned.
 	headers:   domain.Headers,
-	_socket:   Communication,
+	_socket:   SSL_Communication,
 	_body:     bufio.Scanner,
 	_body_err: Body_Error,
 }
 
 
 parse_response :: proc(
-	socket: Communication,
+	socket: SSL_Communication,
 	allocator := context.allocator,
 ) -> (
 	res: Response,
@@ -117,13 +95,9 @@ parse_response :: proc(
 ) {
 	res._socket = socket
 
-	stream: io.Stream
-	switch comm in socket {
-	case net.TCP_Socket:
-		stream = tcp_stream(comm)
-	case SSL_Communication:
-		stream = ssl_tcp_stream(comm.ssl)
-	}
+
+	stream := ssl_tcp_stream(socket.ssl)
+
 
 	stream_reader := io.to_reader(stream)
 	scanner: bufio.Scanner
@@ -153,11 +127,7 @@ parse_response :: proc(
 		return
 	}
 
-	res.status, ok = domain.status_from_string(rline_str[si + 1:])
-	if !ok {
-		err = Request_Error.Invalid_Response_Method
-		return
-	}
+	res.status = strconv.atoi(rline_str[si + 1:])
 
 	for {
 		if !bufio.scanner_scan(&scanner) {
@@ -187,6 +157,7 @@ parse_response :: proc(
 	return res, nil
 }
 
+
 request :: proc(
 	target: string,
 	request: ^Request,
@@ -195,13 +166,19 @@ request :: proc(
 	res: Response,
 	err: Error,
 ) {
-	url, endpoint := parse_endpoint(target) or_return
+	url, endpoint, parse_err := domain.parse_endpoint(target)
+	if parse_err != nil {
+		return {}, Connection_Error.Invalid_URL
+	}
 	defer delete(url.queries)
 
 	domain.set_websocket_connection_headers(&request.headers, url.host)
 	req_buf := format_request(url, request, allocator)
 	defer bytes.buffer_destroy(&req_buf)
-	socket := net.dial_tcp(endpoint) or_return
+	socket, dial_err := net.dial_tcp(endpoint)
+	if dial_err != nil {
+		return {}, Connection_Error.Invalid_URL
+	}
 
 	// HTTPS using openssl.
 	if url.scheme == "https" || url.scheme == "wss" {
@@ -216,11 +193,11 @@ request :: proc(
 
 		switch openssl.SSL_connect(ssl) {
 		case 2:
-			err = SSL_Error.Controlled_Shutdown
+			err = Connection_Error.Closed
 			return
 		case 1: // success
 		case:
-			err = SSL_Error.Fatal_Shutdown
+			err = Connection_Error.Closed
 			return
 		}
 
@@ -229,7 +206,7 @@ request :: proc(
 		for to_write > 0 {
 			ret := openssl.SSL_write(ssl, raw_data(buf), c.int(to_write))
 			if ret <= 0 {
-				err = SSL_Error.SSL_Write_Failed
+				err = Connection_Error.Write_Error
 				return
 			}
 
@@ -237,11 +214,9 @@ request :: proc(
 		}
 
 		return parse_response(SSL_Communication{ssl = ssl, ctx = ctx, socket = socket}, allocator)
+	} else {
+		panic("Client does not support HTTP, unimplemented.")
 	}
-
-	// HTTP, just send the request.
-	net.send_tcp(socket, bytes.buffer_to_bytes(&req_buf)) or_return
-	return parse_response(socket, allocator)
 }
 
 
@@ -395,14 +370,10 @@ response_destroy :: proc(res: ^Response, body: Maybe(Body_Type) = nil, was_alloc
 
 	// We close now and not at the time we got the response because reading the body,
 	// could make more reads need to happen (like with chunked encoding).
-	switch comm in res._socket {
-	case net.TCP_Socket:
-		net.close(comm)
-	case SSL_Communication:
-		openssl.SSL_free(comm.ssl)
-		openssl.SSL_CTX_free(comm.ctx)
-		net.close(comm.socket)
-	}
+	openssl.SSL_free(res._socket.ssl)
+	openssl.SSL_CTX_free(res._socket.ctx)
+	net.close(res._socket.socket)
+
 }
 
 // Body :: string
