@@ -3,9 +3,13 @@ package client
 import openssl "../../deps/openssl"
 import "core:c"
 import "core:encoding/endian"
-import "core:fmt"
+import "core:math/rand"
 import "core:mem"
 import "core:reflect"
+
+
+@(private)
+r := rand.create(18)
 
 
 Connection_Error :: enum {
@@ -25,11 +29,9 @@ Connection :: struct {
 
 
 // TODO send_raw
-connection_send :: proc(conn: ^Connection, content: string) -> Error {
+connection_send :: proc(conn: ^Connection, payload: string) -> Error {
+	return send_raw(conn, .text, payload, false)
 
-	bytes_written := openssl.SSL_write(conn.com.ssl, raw_data(content), i32(len(content)))
-	// TODO: create error enum for openssl lib
-	return Connection_Error.Write_Error if bytes_written <= 0 else nil
 
 }
 
@@ -40,38 +42,93 @@ connection_ping :: proc(conn: ^Connection) -> Error {
 @(private)
 send_raw :: proc(conn: ^Connection, op: Opcode, payload: string, nonzero_mask: bool) -> Error {
 	context.allocator = conn.arena
-	max_size := max_frame_header_size + len(payload)
+	max_size: uint = max_frame_header_size + len(payload)
 
-	if len(conn.write_buffer) < max_size {
-		conn.write_buffer = mem.resize()
+	if len(conn.write_buffer) < int(max_size) {
+		conn.write_buffer = mem.resize_bytes(conn.write_buffer, int(max_size)) or_return
 	}
+
+	msg := conn.write_buffer // ZII
+	msg[0] |= fin_bit
+	msg[0] |= u8(op)
+
+	msg[1] |= mask_bit
+
+	next: uint
+	actual_size: uint
+	if len(payload) <= 125 {
+		sm_length: u8 = cast(u8)(len(payload))
+		msg[1] |= sm_length
+		next = 2
+		actual_size = max_size - 8
+	} else if len(payload) < 65536 {
+		msg[1] |= 126
+		mid_length: u16 = cast(u16)(len(payload))
+		endian.put_u16(msg[2:4], .Big, mid_length)
+		next = 4
+		actual_size = max_size - 6
+	} else {
+		msg[1] |= 127
+		big_length: u64 = cast(u64)(len(payload))
+		endian.put_u64(msg[2:10], .Big, big_length)
+		next = 10
+		actual_size = max_size
+	}
+
+	if nonzero_mask {
+		panic("nonzero_mask unimplemented")
+
+	} else {
+		copy_slice(msg[next:next + 4], []byte{0, 0, 0, 0})
+	}
+
+	copy_slice(msg[next + 4:], transmute([]u8)payload)
+
+	if nonzero_mask {
+		panic("nonzero_mask unimplemented")
+	} else {
+		// zero mask, no effect
+	}
+
+	to_send := msg[0:actual_size]
+	bytes_written := openssl.SSL_write(conn.com.ssl, raw_data(to_send), i32(len(to_send)))
+	// TODO: create error enum for openssl lib
+	return Connection_Error.Write_Error if bytes_written <= 0 else nil
 }
 
+@(private)
+mask_bytes :: proc(mask: ^[4]byte, bytes: []byte) {
+	for b, i in bytes {
+		bytes[i] = b ~ mask[i % 4]
+	}
+}
 
 connection_recv :: proc(conn: ^Connection) -> (str: string, err: Error) {
 	for {
 		header := receive_header(conn) or_return
-		fmt.println(header)
 		switch header.op {
 		case .continuation:
 			panic("unimplemented")
 		case .close:
 			return "", Connection_Error.Closed
 		case .ping, .pong:
-			fmt.println(header.op)
+			send_raw(conn, .pong, {}, false) or_return
 			// @TODO 
 			continue
 		case .text, .binary:
 			payload, _ := mem.alloc_bytes_non_zeroed(cast(int)header.payload_len, allocator = conn.arena)
-			n: uintptr = 0
+			n: uint = 0
 			for n < header.payload_len {
-				more := openssl.SSL_write(conn.com.ssl, raw_data(payload[n:]), i32(len(payload)))
+				more := openssl.SSL_read(conn.com.ssl, raw_data(payload[n:]), i32(len(payload)))
 				if more < 1 {
 					panic("cant read payload?")
 				}
-				n = n + uintptr(more)
+				n = n + uint(more)
 			}
 
+			if header.has_mask {
+				mask_bytes(&header.mask, payload)
+			}
 			// @TODO mask
 			return string(payload), nil
 		}
@@ -91,7 +148,7 @@ Opcode :: enum (byte) {
 
 Header :: struct {
 	op:          Opcode,
-	payload_len: uintptr,
+	payload_len: uint,
 	has_mask:    bool,
 	mask:        [4]byte,
 }
@@ -116,15 +173,12 @@ rsv3_bit :: 1 << 4
 receive_header :: proc(conn: ^Connection) -> (h: Header, err: Error) {
 	tmp: []byte = conn.read_buffer[0:2]
 	r := openssl.SSL_read(conn.com.ssl, raw_data(tmp), c.int(len(tmp)))
-	fmt.println(tmp)
 	if (r < 2) {
 		return {}, Connection_Error.Invalid_Frame
 	}
 
-	fmt.println(tmp[0] & fin_bit)
 	fin: bool = (tmp[0] & fin_bit) != 0
 	if !fin {
-		fmt.println("has ")
 		return {}, Connection_Error.Protocol_Not_Followed
 	}
 
@@ -135,7 +189,7 @@ receive_header :: proc(conn: ^Connection) -> (h: Header, err: Error) {
 	op := tmp[0] & 0x0f
 	has_mask: bool = tmp[1] & mask_bit != 0
 
-	payload_len: uintptr = cast(uintptr)tmp[0] & payload_len_bits
+	payload_len: uint = cast(uint)tmp[1] & payload_len_bits
 	if payload_len == 126 {
 		tmp = conn.read_buffer[0:2]
 		n := openssl.SSL_read(conn.com.ssl, raw_data(tmp), c.int(len(tmp)))
@@ -144,7 +198,7 @@ receive_header :: proc(conn: ^Connection) -> (h: Header, err: Error) {
 		}
 
 		payload_len_u16 := endian.get_u16(tmp[:2], .Big) or_else panic("get_u16")
-		payload_len = cast(uintptr)payload_len_u16
+		payload_len = cast(uint)payload_len_u16
 
 	} else if payload_len == 127 {
 		tmp = conn.read_buffer[0:8]
@@ -154,10 +208,10 @@ receive_header :: proc(conn: ^Connection) -> (h: Header, err: Error) {
 		}
 
 		payload_len_u64 := endian.get_u64(tmp[:8], .Big) or_else panic("get_u64")
-		payload_len = cast(uintptr)payload_len_u64
+		payload_len = cast(uint)payload_len_u64
 	}
 
-	mask: [4]u8 = {}
+	mask: [4]u8
 	if has_mask {
 		n := openssl.SSL_read(conn.com.ssl, raw_data(&mask), c.int(len(mask)))
 		if (n < 1) {

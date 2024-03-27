@@ -31,13 +31,10 @@ Request_Error :: enum {
 
 
 Error :: union #shared_nil {
-	// net.Dial_Error,
-	// net.Parse_Endpoint_Error,
-	// net.Network_Error,
 	bufio.Scanner_Error,
+	mem.Allocator_Error,
 	Request_Error,
 	Connection_Error,
-	ParseError,
 }
 
 
@@ -62,22 +59,6 @@ SomeUpdate :: struct {
 	a:   [][2]f64,
 }
 
-handle_message :: proc(frame: Frame, err: Error, allocator := context.allocator) {
-	if err != nil {
-		log.error(frame, err)
-		os.exit(1)
-	} else {
-		str := string(frame.payload)
-		@(static)
-		ob: OrderbookSmtg
-		parse_err := json.unmarshal(frame.payload, &ob, .JSON, allocator)
-		if parse_err != nil {
-			log.error(parse_err)
-		}
-		fmt.println(ob)
-		ob = {}
-	}
-}
 
 main :: proc() {
 
@@ -96,10 +77,16 @@ main :: proc() {
 		log.error(err)
 	}
 
-	write_err := connection_write(&connection, str)
+	write_err := connection_send(&connection, str)
+	log.debug(write_err)
 	if write_err != nil {
 		log.error(write_err)
+		panic("done")
 	}
-	msg, recv_err := connection_recv(&connection)
-	fmt.println(msg, recv_err)
+	log.debug("???")
+
+	for _ in 0 ..< 100 {
+		msg, recv_err := connection_recv(&connection)
+		fmt.println(msg, recv_err)
+	}
 }
