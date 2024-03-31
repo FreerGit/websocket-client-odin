@@ -11,6 +11,27 @@ import "core:reflect"
 @(private)
 r := rand.create(18)
 
+@(private = "file")
+max_frame_header_size :: 2 + 8 + 4 // fixed header + length + mask
+
+@(private = "file")
+mask_bit :: 1 << 7 // frame header byte 1 bits from section 5.2 of RFC 6455
+
+@(private = "file")
+payload_len_bits :: 0x7f
+// frame header byte 0 bits from section 5.2 of RFC 6455
+
+@(private = "file")
+fin_bit :: 1 << 7
+
+@(private = "file")
+rsv1_bit :: 1 << 6
+
+@(private = "file")
+rsv2_bit :: 1 << 5
+
+@(private = "file")
+rsv3_bit :: 1 << 4
 
 Connection_Error :: enum {
 	Closed,
@@ -153,21 +174,6 @@ Header :: struct {
 	mask:        [4]byte,
 }
 
-@(private = "file")
-max_frame_header_size :: 2 + 8 + 4 // fixed header + length + mask
-@(private = "file")
-mask_bit :: 1 << 7 // frame header byte 1 bits from section 5.2 of RFC 6455
-@(private = "file")
-payload_len_bits :: 0x7f
-// frame header byte 0 bits from section 5.2 of RFC 6455
-@(private = "file")
-fin_bit :: 1 << 7
-@(private = "file")
-rsv1_bit :: 1 << 6
-@(private = "file")
-rsv2_bit :: 1 << 5
-@(private = "file")
-rsv3_bit :: 1 << 4
 
 @(private)
 receive_header :: proc(conn: ^Connection) -> (h: Header, err: Error) {

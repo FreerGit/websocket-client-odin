@@ -1,3 +1,4 @@
+//+ private
 package client
 
 import openssl "../../deps/openssl"
@@ -83,9 +84,8 @@ main :: proc() {
 		log.error(write_err)
 		panic("done")
 	}
-	log.debug("???")
 
-	for _ in 0 ..< 100 {
+	for {
 		msg, recv_err := connection_recv(&connection)
 		fmt.println(msg, recv_err)
 	}

@@ -13,7 +13,7 @@ tasks:
 
   build-release:
     cmds:
-      - odin build src/client -out:target/client -o:speed -no-bounds-check -disable-assert -lld
+      - odin build src/client -out:target/client -o:speed 
     sources:
       - ./src/**/*.odin
       - ./deps/**/*.odin
