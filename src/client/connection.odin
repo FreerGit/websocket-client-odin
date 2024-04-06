@@ -124,14 +124,14 @@ mask_bytes :: proc(mask: ^[4]byte, bytes: []byte) {
 	}
 }
 
-connection_recv :: proc(conn: ^Connection) -> (str: string, err: Error) {
+connection_recv :: proc(conn: ^Connection) -> (bytes: []byte, err: Error) {
 	for {
 		header := receive_header(conn) or_return
 		switch header.op {
 		case .continuation:
 			panic("unimplemented")
 		case .close:
-			return "", Connection_Error.Closed
+			return {}, Connection_Error.Closed
 		case .ping, .pong:
 			send_raw(conn, .pong, {}, false) or_return
 			// @TODO 
@@ -151,7 +151,7 @@ connection_recv :: proc(conn: ^Connection) -> (str: string, err: Error) {
 				mask_bytes(&header.mask, payload)
 			}
 			// @TODO mask
-			return string(payload), nil
+			return payload, nil
 		}
 
 	}
